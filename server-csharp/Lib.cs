@@ -4,7 +4,7 @@ public static partial class Module
 {
     // We're using this table as a singleton, so in this table
     // there can only be one element where the 'id' is 0
-    [Table{Name = "config", Public = true}]
+    [Table(Name = "config", Public = true)]
     public partial struct Config
     {
         [PrimaryKey]
@@ -35,7 +35,7 @@ public static partial class Module
         public uint mass;
     }
 
-    [Table(nameof = "circle", Public = true)]
+    [Table(Name = "circle", Public = true)]
     public partial struct Circle
     {
         [PrimaryKey]
@@ -64,9 +64,9 @@ public static partial class Module
         public string name;
     }
 
-    [Reducer]
-    public static void Debug(ReducerContext ctx)
+    [Reducer(ReducerKind.ClientConnected)]
+    public static void Connect(ReducerContext ctx)
     {
-        Log.Info($"This reducer was called by {ctx.Sender}");
+        Log.Info($"{ctx.Sender} just connected.");
     }
 }
