@@ -53,4 +53,20 @@ public static partial class Module
         [PrimaryKey]
         public uint entity_id;
     }
+
+    [Table(Name = "player", Public = true)]
+    public partial struct Player
+    {
+        [PrimaryKey]
+        public Identity identity;
+        [Unique, AutoInc]
+        public uint player_id;
+        public string name;
+    }
+
+    [Reducer]
+    public static void Debug(ReducerContext ctx)
+    {
+        Log.Info($"This reducer was called by {ctx.Sender}");
+    }
 }
