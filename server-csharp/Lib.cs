@@ -69,4 +69,37 @@ public static partial class Module
     {
         Log.Info($"{ctx.Sender} just connected.");
     }
+
+    // Note the `init` parameter passed to the reducer macro.
+    // That indicates to SpacetimeDB that it should be called
+    // once upon database creation.
+    [Reducer(ReducerKind.Init)]
+    public static void Init(ReducerContext ctx) {
+        Log.Info($"Initializing...");
+        ctx.db.config.Insert(new Config { world_size = 1000});
+    }
+
+
+    const uint FOOD_MASS_MIN = 2;
+    const uint FOOD_MASS_MAX = 4;
+    const uint TARGET_FOOD_COUNT = 600;
+
+    public static float MassToRadius(uint mass) => MathF.Sqrt(mass);
+
+    [Reducer]
+    public static void SpawnFood(ReducerContext ctx) {
+        if (ctx.Db.player.Count == 0) //Are there no players yet?
+        {
+            return;
+        }
+
+        var world_size = (ctx.Db.config.id.Find(0) ?? throw new Exception("Config not found")).world_size;
+        var rng = ctx.Rng;
+        var food_count = ctx.Db.food.Count;
+        while (food_count < TARGET_FOOD_COUNT)
+        {
+            var food_mass = rng.Range(FOOD_MASS_MIN, FOOD_MASS_MAX);
+            
+        }
+    }
 }
