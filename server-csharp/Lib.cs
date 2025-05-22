@@ -64,6 +64,7 @@ public static partial class Module
     }
 
     [Table(Name = "player", Public = true)]
+    [Table(Name = "logged_out_player")]
     public partial struct Player
     {
         [PrimaryKey]
@@ -76,7 +77,39 @@ public static partial class Module
     [Reducer(ReducerKind.ClientConnected)]
     public static void Connect(ReducerContext ctx)
     {
-        Log.Info($"{ctx.Sender} just connected.");
+        var player = ctx.Db.logged_out_player.identity.Find(ctx.Sender);
+        if (player != null)
+        {
+            ctx.Db.player.Insert(player.Value);
+            ctx.Db.logged_out_player.identity.Delete(player.Value.identity);
+        }
+        else
+        {
+            ctx.Db.player.Insert(new Player
+            {
+                identity = ctx.Sender,
+                name = "",
+            });
+        }
+    }
+
+    [Reducer(ReducerKind.ClientDisconnected)]
+    public static void Disconnect(ReducerContext ctx)
+    {
+        // var player = ctx.Db.player.identity.Find(ctx.Sender) ?? throw new Exception("Player not found");
+        // ctx.Db.logged_out_player.Insert(player);
+        // ctx.Db.player.identity.Delete(player.identity);
+
+        var player = ctx.Db.player.identity.Find(ctx.Sender) ?? throw new Exception("Player not found");
+        // Remove any circles from the arena
+        foreach (var circle in ctx.Db.circle.player_id.Filter(player.player_id))
+        {
+            var entity = ctx.Db.entity.entity_id.Find(circle.entity_id) ?? throw new Exception("Could not find circle");
+            ctx.Db.entity.entity_id.Delete(entity.entity_id);
+            ctx.Db.circle.entity_id.Delete(entity.entity_id);
+        }
+        ctx.Db.logged_out_player.Insert(player);
+        ctx.Db.player.identity.Delete(player.identity);
     }
 
     // Note the `init` parameter passed to the reducer macro.
@@ -86,10 +119,10 @@ public static partial class Module
     public static void Init(ReducerContext ctx)
     {
         Log.Info($"Initializing...");
-        ctx.db.config.Insert(new Config { world_size = 1000 });
+        ctx.Db.config.Insert(new Config { world_size = 1000 });
         ctx.Db.spawn_food_timer.Insert(new SpawnFoodTimer
         {
-            scheduled_at = new ScheduleAt.Interval(TimeSpawn.FromMilliseconds(500))
+            scheduled_at = new ScheduleAt.Interval(TimeSpan.FromMilliseconds(500))
         });
     }
 
@@ -131,10 +164,58 @@ public static partial class Module
         }
     }
 
+    public static float Range(this Random rng, float min, float max) => rng.NextSingle() * (max - min) + min;
+    public static uint Range(this Random rng, uint min, uint max) => (uint)rng.NextInt64(min, max);
+
+
+    const uint START_PLAYER_MASS = 15;
+
+    [Reducer]
+    public static void EnterGame(ReducerContext ctx, string name)
+    {
+        Log.Info($"Creative player with name {name}");
+        var player = ctx.Db.player.identity.Find(ctx.Sender) ?? throw new Exception("Player not found");
+        player.name = name;
+        ctx.Db.player.identity.Update(player);
+        SpawnPlayerInitialCircle(ctx, player.player_id);
+    }
+
+    public static Entity SpawnPlayerInitialCircle(ReducerContext ctx, uint player_id)
+    {
+        var rng = ctx.Rng;
+        var world_size = (ctx.Db.config.id.Find(0) ?? throw new Exception("Config not found")).world_size;
+        var player_start_radius = MassToRadius(START_PLAYER_MASS);
+        var x = rng.Range(player_start_radius, world_size - player_start_radius);
+        var y = rng.Range(player_start_radius, world_size - player_start_radius);
+        return SpawnCircleAt(
+            ctx,
+            player_id,
+            START_PLAYER_MASS,
+            new DbVector2(x, y),
+            ctx.Timestamp
+        );
+    }
+
+    public static Entity SpawnCircleAt(ReducerContext ctx, uint player_id, uint mass, DbVector2 position, SpacetimeDB.Timestamp timestamp)
+    {
+        var entity = ctx.Db.entity.Insert(new Entity
+        {
+            position = position,
+            mass = mass,
+        });
+
+        ctx.Db.circle.Insert(new Circle
+        {
+            entity_id = entity.entity_id,
+            player_id = player_id,
+            direction = new DbVector2(0, 1),
+            speed = 0f,
+            last_split_time = timestamp,
+        });
+        return entity;
+    }
 }
 
-public static float Range(this Random rng, float min, float max) => rng.NextSingle() * (max - min) + min;
-public static uint Range(this Random rng, uint min, uint max) => (uint)rng.NextInt64(min, max);
 
 
 
