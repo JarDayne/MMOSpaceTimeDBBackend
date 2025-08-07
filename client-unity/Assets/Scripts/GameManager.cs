@@ -20,6 +20,9 @@ public class GameManager : MonoBehaviour
     public static Identity LocalIdentity { get; private set; }
     public static DbConnection Conn { get; private set; }
 
+    public static Dictionary<uint, EntityController> Entities = new Diictionary<uint, EntityController>();
+    public static Dictionary<uint, PlayerController> Players = new Dictionary<uint, PlayerController>();
+
     private void Start()
     {
         Instance = this;
@@ -47,11 +50,18 @@ public class GameManager : MonoBehaviour
     }
 
     // Called when we connect to SpacetimeDB and receive our client identity
-    void HandleConnect(DbConnection _conn, Identity identity, string token)
+    void HandleConnect(DbConnection conn, Identity identity, string token)
     {
         Debug.Log("Connected.");
         AuthToken.SaveToken(token);
         LocalIdentity = identity;
+
+        conn.Db.Circle.OnInsert += CircleOnInsert;
+        conn.Db.Entity.OnUpdate += EntityOnUpdate;
+        conn.Db.Entity.OnDelete += EntityOnDelete;
+        conn.Db.Food.OnInsert += FoodOnInsert;
+        conn.Db.Player.OnInsert += PlayerOnInsert;
+        conn.Db.Player.OnDelete += PlayerOnDelete;
 
         OnConnected?.Invoke();
 
@@ -60,6 +70,62 @@ public class GameManager : MonoBehaviour
             .OnApplied(HandleSubscriptionApplied)
             .SubscribeToAllTables();
     }
+
+    private static void CircleOnInsert(EventContext context, Circle insertedValue)
+    {
+        var player = GetOrCreatePlayer(insertedValue.PlayerId);
+        var entityController = PrefabManager.SpawnCircle(insertedValue, player);
+        Entities.Add(insertedValue.EntityId, entityController);
+    }
+
+    private static void EntityOnUpdate(EventContext context, Entity oldEntity, Entity newEntity)
+    {
+        if (!Entities.TryGetValue(newEntity.EntityId, out var entityController))
+        {
+            return;
+        }
+        entityController.OnEntityUpdated(newEntity);
+    }
+
+    private static void EntityOnDelete(EventContext context, Entity oldEntity)
+    {
+        if (Entities.Remove(oldEntity.EntityId, out var entityController))
+        {
+            entityController.OnDelete(context);
+        }
+    }
+
+    private static void FoodOnInsert(EventContext context, Food insertedValue)
+    {
+        var entityController = PrefabManager.SpawnFood(insertedValue);
+        Entities.Add(insertedValue.EntityId, entityController);
+    }
+
+    private static void PlayerOnInsert(EventContext context, Player insertedPlayer)
+    {
+        GetOrCreatePlayer(insertedPlayer.PlayerId);
+    }
+
+    private static void PlayerOnDelete(EventContext context, Player deletedValue)
+    {
+        if (Players.Remove(deletedValue.PlayerId, out var playerController))
+        {
+            GameObject.Destroy(playerController.gameObject);
+        }
+    }
+
+    private static PlayerController GetOrCreatePlayer(uint playerId)
+    {
+        if (!Players.TryGetValue(playerId, out var playerController))
+        {
+            var player = Conn.Db.Player.PlayerId.Find(playerId);
+            playerController = PrefabManager.SpawnPlayer(player);
+            Players.Add(playerId, playerController);
+        }
+
+        return playerController;
+    }
+
 
     void HandleConnectError(Exception ex)
     {
@@ -124,8 +190,8 @@ public class GameManager : MonoBehaviour
     }
 }
 
-// // Uncomment when there is an error after generating the client
-// namespace System.Runtime.CompilerServices
-// {
-//     internal static class IsExternalInit { }
-// }
+// Uncomment when there is an error after generating the client
+namespace System.Runtime.CompilerServices
+{
+    internal static class IsExternalInit { }
+}
