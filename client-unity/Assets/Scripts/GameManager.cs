@@ -20,7 +20,7 @@ public class GameManager : MonoBehaviour
     public static Identity LocalIdentity { get; private set; }
     public static DbConnection Conn { get; private set; }
 
-    public static Dictionary<uint, EntityController> Entities = new Diictionary<uint, EntityController>();
+    public static Dictionary<uint, EntityController> Entities = new Dictionary<uint, EntityController>();
     public static Dictionary<uint, PlayerController> Players = new Dictionary<uint, PlayerController>();
 
     private void Start()
@@ -150,6 +150,13 @@ public class GameManager : MonoBehaviour
         //Get the world size from the config table and set up the arena
         var worldSize = Conn.Db.Config.Id.Find(0).WorldSize;
         SetupArena(worldSize);
+
+        /*
+        The last step is to call the enter_game reducer on the server, passing in a username for our player, which will spawn a circle for our player. For the sake of simplicity, let's call the enter_game reducer from the HandleSubscriptionApplied callback with the name "3Blave".
+        */
+
+        // Call enter game with the player name 3Blave
+        ctx.Reducers.EnterGame("3Blave");
     }
 
     public static bool IsConnected()
@@ -165,7 +172,6 @@ public class GameManager : MonoBehaviour
 
 
 
-
     private void SetupArena(float worldSize)
     {
         CreateBorderCube(new Vector2(worldSize / 2.0f, worldSize + borderThickness / 2),
@@ -178,6 +184,9 @@ public class GameManager : MonoBehaviour
             new Vector2(borderThickness, worldSize + borderThickness * 2.0f)); //East
         CreateBorderCube(new Vector2(-borderThickness / 2, worldSize / 2.0f),
             new Vector2(borderThickness, worldSize + borderThickness * 2.0f)); //West
+
+        // Set the world size for the camera controller
+        CameraController.WorldSize = worldSize;
     }
 
     private void CreateBorderCube(Vector2 position, Vector2 scale)

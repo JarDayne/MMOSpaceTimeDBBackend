@@ -28,7 +28,9 @@ public class CameraController : MonoBehaviour
                 y = centerOfMass.Value.y,
                 z = transform.position.z
             };
-        } else {
+        }
+        else
+        {
             transform.position = arenaCenterTransform;
         }
 
