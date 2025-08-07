@@ -75,3 +75,7 @@ crashlytics-build.properties
 
 # Additional .vsconfig -Jarenz Oria
 .vsconfig
+
+# Imported Resources -Jarenz Oria
+/Assets/TextMesh Pro/
+/Assets/TextMesh Pro.meta
